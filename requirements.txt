@@ -1,0 +1,23 @@
+# Core dependencies
+fastapi[standard]==0.115.11
+uvicorn>=0.15.0
+python-dotenv==1.0.1
+httpx==0.28.1
+
+# LangChain ecosystem
+langchain==0.3.25
+langchain-community==0.3.24
+langchain-core==0.3.61
+langchain-chroma==0.2.3
+langchain-openai==0.3.18
+
+# OpenAI
+openai==1.82.0
+
+# Document processing
+chromadb==0.6.3
+pypdf2==3.0.1
+unstructured[pdf]==0.17.2
+
+# Add Python version requirement
+python>=3.9,<4.0
