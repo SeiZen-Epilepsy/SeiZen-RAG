@@ -1,4 +1,4 @@
-# RAG (Retrieval-Augmented Generation) Project with FastAPI
+# SeiZen-RAG (Retrieval-Augmented Generation) with FastAPI
 
 ## Description
 
@@ -104,22 +104,36 @@ OPENROUTER_MODEL_NAME="deepseek/deepseek-chat-v3-0324:free"
 ## Running the Application
 
 1. Ingest PDF Data
-   Before running the FastAPI server, you need to process your PDF files and index them into ChromaDB. 1. Place your PDF files inside the ./data/ directory. 2. Run the data ingestion script from the root project directory:
-   `bash
-python scripts/ingest_data.py
-`
-   This script will: - Read all PDF files from the data/ directory. - Split them into chunks. - Create embeddings using Azure OpenAI. - Store the embeddings into ChromaDB in the vector_store/chroma_db_azure_multi/ directory. - If `CLEAN_VECTOR_STORE_BEFORE_INGEST` in `ingest_data.py` is set to `True` (default), the old vector store directory will be deleted before a new ingest.
+   Before running the FastAPI server, you need to process your PDF files and index them into ChromaDB.
+
+   1. Place your PDF files inside the ./data/ directory.
+   2. Run the data ingestion script from the root project directory:
+
+      ```bash
+      python scripts/ingest_data.py
+      ```
+
+      This script will:
+
+      - Read all PDF files from the data/ directory. - Split them into chunks.
+      - Create embeddings using Azure OpenAI.
+      - Store the embeddings into ChromaDB in the `vector_store/chroma_db_azure_multi/` directory.
+      - If `CLEAN_VECTOR_STORE_BEFORE_INGEST` in `ingest_data.py` is set to `True` (default), the old vector store directory will be deleted before a new ingest.
 
 2. Running the FastAPI Server
    After the data has been successfully ingested, run the FastAPI server from the root project directory:
 
    ```bash
    uvicorn app.main:app --reload
+   ```
+
    or
+
+   ```bash
    fastapi dev app/main.py
    ```
 
-   - app.main:app: Points to the FastAPI instance (app) inside the main.py file located in the app directory.
+   - `app.main:app`: Points to the `FastAPI` instance (`app`) inside the `main.py` file located in the `app` directory.
 
    - `--reload`: The server will automatically restart upon code changes (useful during development).
 
@@ -135,4 +149,6 @@ Once the server is running, you can access the interactive API documentation (Sw
 
 ## License
 
-This project is licensed under the MIT License
+This project is licensed under the MIT License - see the [LICENSE](LICENSE.txt) file for details.
+
+MIT License is a permissive license that allows for reuse with minimal restrictions. It permits commercial use, modification, distribution, and private use while providing only the conditions that the license and copyright notice must be included with the software.
