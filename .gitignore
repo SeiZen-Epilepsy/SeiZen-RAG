@@ -22,7 +22,6 @@ wheels/
 *.log
 *.sqlite3
 *.db
-vector_store/*
 
 # Environments
 .env
