@@ -157,6 +157,10 @@ Once the server is running, you can access the interactive API documentation (Sw
 
 - ReDoc: http://127.0.0.1:8000/redoc
 
+## Reference
+
+https://medium.com/@sunilvijendra/building-your-first-rag-pipeline-with-langchain-and-azure-openai-service-727a59ab0b18
+
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE.txt) file for details.
