@@ -38,7 +38,7 @@ class Settings(BaseSettings):
 
     RETRIEVER_SEARCH_K: int = int(os.getenv("RETRIEVER_SEARCH_K", 4))
     LLM_TEMPERATURE: float = float(os.getenv("LLM_TEMPERATURE", 0.3))
-    LLM_MAX_TOKENS: Optional[int] = None
+    LLM_MAX_TOKENS: int = int(os.getenv("LLM_MAX_TOKENS", 800))
 
 settings = Settings()
 
