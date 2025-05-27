@@ -34,8 +34,18 @@ This application uses Azure OpenAI Embeddings to create vector representations o
 ```plaintext
     rag_project/
     ├── app/                             # FastAPI Application
-    │   ├── api/                         # API Modules (routes.py)
+    │   ├── controllers/                 # APP Controller
+    │   │   ├── open_ai/                 # OpenAI Controller Folder
+    │   │   │   └── controller.py        # OpenAI Controller File
+    │   │   └── open_router/             # OpenRouter Controller
+    │   │      └── controller.py         # OpenRouter Controller File
     │   ├── core/                        # Core Configuration (config.py)
+    │   ├── routes/                      # APP Routes
+    │   │   ├── open_ai/                 # OpenAI Route Folder
+    │   │   │   └── route.py             # OpenAI Route File
+    │   │   ├── open_router/             # OpenRouter Controller
+    │   │   │   └── route.py             # OpenRouter Route File
+    │   │   └── routes.py                # All Routes File
     │   ├── schemas/                     # Pydantic Schemas (schemas.py)
     │   ├── services/                    # Business Logic (services.py)
     │   └── main.py                      # FastAPI entry point

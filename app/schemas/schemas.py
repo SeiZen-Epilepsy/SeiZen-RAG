@@ -1,7 +1,7 @@
 # File: app/schemas/schemas.py
 
 from pydantic import BaseModel, Field
-from typing import List, Any # Hapus Optional jika tidak digunakan
+from typing import List, Any
 
 class QueryRequest(BaseModel):
     question: str = Field(..., min_length=1, description="Pertanyaan pengguna untuk RAG system.")

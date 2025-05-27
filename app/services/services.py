@@ -1,55 +1,44 @@
 # File: app/services/services.py
 
 import os
-from langchain_openai import AzureOpenAIEmbeddings, ChatOpenAI
+from langchain_openai import AzureOpenAIEmbeddings, ChatOpenAI, AzureChatOpenAI
 from langchain_community.vectorstores import Chroma
 from langchain.prompts import PromptTemplate
 from langchain_core.runnables import RunnablePassthrough, RunnableParallel
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.documents import Document
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Literal, Optional
+from app.core.config import settings
 
-# Mengimpor settings terpusat
-try:
-    from ..core.config import settings
-except ImportError:  # Fallback untuk testing atau struktur berbeda
-    from core.config import settings
-
+LLMProviderType = Literal["azure_chat", "openrouter"]  # Hanya Azure Chat dan OpenRouter
 
 class RAGService:
     def __init__(self):
-        # Konstruktor sekarang akan dijalankan sekali oleh lifespan di main.py
         print("Menginisialisasi RAGService...")
 
-        # 1. Validasi Konfigurasi Awal
-        if not all([settings.AZURE_OPENAI_ENDPOINT, settings.AZURE_OPENAI_API_KEY,
+        # --- Validasi Konfigurasi ---
+        if not all([settings.AZURE_OPENAI_EMBEDDING_ENDPOINT, settings.AZURE_OPENAI_EMBEDDING_API_KEY,
                     settings.AZURE_OPENAI_EMBEDDING_DEPLOYMENT_NAME]):
-            raise ValueError(
-                "Konfigurasi Azure OpenAI Embeddings tidak lengkap. Periksa file .env dan app.core.config.")
-        if not settings.OPENROUTER_API_KEY:
-            raise ValueError("OPENROUTER_API_KEY tidak ditemukan. Periksa file .env dan app.core.config.")
+            raise ValueError("Konfigurasi Azure OpenAI Embeddings tidak lengkap.")
 
         chroma_db_file_path = os.path.join(settings.CHROMA_DB_DIR, "chroma.sqlite3")
         if not os.path.isdir(settings.CHROMA_DB_DIR) or not os.path.exists(chroma_db_file_path):
             raise FileNotFoundError(
-                f"Direktori atau file database ChromaDB ('chroma.sqlite3') tidak ditemukan di: {settings.CHROMA_DB_DIR}. "
-                "Pastikan skrip 'scripts/ingest_data.py' sudah dijalankan dan berhasil membuat database."
-            )
+                f"Database ChromaDB tidak ditemukan di: {settings.CHROMA_DB_DIR}. Jalankan 'scripts/ingest_data.py'.")
 
-        # 2. Inisialisasi Model Embedding (Azure)
+        # --- Inisialisasi Embedding Model (Azure) ---
         try:
             self.embeddings_model = AzureOpenAIEmbeddings(
-                azure_endpoint=settings.AZURE_OPENAI_ENDPOINT,
-                openai_api_key=settings.AZURE_OPENAI_API_KEY,
+                azure_endpoint=settings.AZURE_OPENAI_EMBEDDING_ENDPOINT,
+                openai_api_key=settings.AZURE_OPENAI_EMBEDDING_API_KEY,
                 azure_deployment=settings.AZURE_OPENAI_EMBEDDING_DEPLOYMENT_NAME,
-                openai_api_version=settings.AZURE_OPENAI_API_VERSION,
+                api_version=settings.AZURE_OPENAI_EMBEDDING_API_VERSION,
             )
-            print("Model Azure OpenAI Embeddings berhasil diinisialisasi untuk RAG service.")
+            print("Model Azure OpenAI Embeddings berhasil diinisialisasi.")
         except Exception as e:
-            print(f"Error kritis saat menginisialisasi Azure Embeddings: {e}")
-            raise RuntimeError("Gagal menginisialisasi Azure Embeddings model.") from e
+            raise RuntimeError(f"Gagal menginisialisasi Azure Embeddings model: {e}") from e
 
-        # 3. Muat Vector Store (ChromaDB)
+        # --- Muat Vector Store (ChromaDB) ---
         try:
             self.vector_store = Chroma(
                 collection_name=settings.CHROMA_COLLECTION_NAME,
@@ -58,23 +47,53 @@ class RAGService:
             )
             print(f"ChromaDB vector store berhasil dimuat dari: {settings.CHROMA_DB_DIR}")
         except Exception as e:
-            print(f"Error kritis saat memuat ChromaDB: {e}")
-            raise RuntimeError("Gagal memuat ChromaDB vector store.") from e
+            raise RuntimeError(f"Gagal memuat ChromaDB vector store: {e}") from e
 
-        # 4. Inisialisasi LLM (OpenRouter)
-        try:
-            self.llm = ChatOpenAI(
-                openai_api_key=settings.OPENROUTER_API_KEY,
-                base_url="https://openrouter.ai/api/v1",
-                model_name=settings.OPENROUTER_MODEL_NAME,
-                temperature=settings.LLM_TEMPERATURE,
-            )
-            print(f"LLM OpenRouter ({settings.OPENROUTER_MODEL_NAME}) berhasil diinisialisasi.")
-        except Exception as e:
-            print(f"Error kritis saat menginisialisasi OpenRouter LLM: {e}")
-            raise RuntimeError("Gagal menginisialisasi OpenRouter LLM.") from e
+        # --- Inisialisasi Klien LLM ---
+        self.azure_chat_llm: Optional[AzureChatOpenAI] = None
+        if all([settings.AZURE_OPENAI_CHAT_ENDPOINT, settings.AZURE_OPENAI_CHAT_API_KEY,
+                settings.AZURE_OPENAI_CHAT_DEPLOYMENT_NAME]):
+            try:
+                model_kwargs_azure = {}
+                if settings.LLM_MAX_TOKENS: model_kwargs_azure["max_tokens"] = settings.LLM_MAX_TOKENS
+                self.azure_chat_llm = AzureChatOpenAI(
+                    azure_endpoint=settings.AZURE_OPENAI_CHAT_ENDPOINT,
+                    openai_api_key=settings.AZURE_OPENAI_CHAT_API_KEY,
+                    azure_deployment=settings.AZURE_OPENAI_CHAT_DEPLOYMENT_NAME,
+                    model_name=settings.AZURE_OPENAI_CHAT_MODEL_NAME,
+                    api_version=settings.AZURE_OPENAI_CHAT_API_VERSION,
+                    temperature=settings.LLM_TEMPERATURE,
+                    model_kwargs=model_kwargs_azure if model_kwargs_azure else None
+                )
+                print(f"LLM Azure OpenAI Chat ({settings.AZURE_OPENAI_CHAT_DEPLOYMENT_NAME}) berhasil diinisialisasi.")
+            except Exception as e:
+                print(f"PERINGATAN: Gagal menginisialisasi LLM Azure OpenAI Chat: {e}")
+        else:
+            print("INFO: Konfigurasi Azure OpenAI Chat LLM tidak lengkap.")
 
-        # 5. Membuat Retriever
+        self.openrouter_llm: Optional[ChatOpenAI] = None
+        if settings.OPENROUTER_API_KEY:
+            try:
+                model_kwargs_openrouter = {}
+                if settings.LLM_MAX_TOKENS: model_kwargs_openrouter["max_tokens"] = settings.LLM_MAX_TOKENS
+                self.openrouter_llm = ChatOpenAI(
+                    openai_api_key=settings.OPENROUTER_API_KEY,
+                    base_url=settings.OPENROUTER_ENDPOINT,  # Menggunakan settings.OPENROUTER_ENDPOINT
+                    model_name=settings.OPENROUTER_MODEL_NAME,
+                    temperature=settings.LLM_TEMPERATURE,
+                    model_kwargs=model_kwargs_openrouter
+                )
+                print(f"LLM OpenRouter ({settings.OPENROUTER_MODEL_NAME}) berhasil diinisialisasi.")
+            except Exception as e:
+                print(f"PERINGATAN: Gagal menginisialisasi LLM OpenRouter: {e}")
+        else:
+            print("INFO: OPENROUTER_API_KEY tidak dikonfigurasi.")
+
+        if not self.azure_chat_llm and not self.openrouter_llm:
+            raise RuntimeError(
+                "Tidak ada LLM (Azure Chat atau OpenRouter) yang berhasil dikonfigurasi. RAG service tidak dapat berfungsi.")
+
+        # --- Membuat Retriever ---
         try:
             self.retriever = self.vector_store.as_retriever(
                 search_type="similarity",
@@ -82,12 +101,8 @@ class RAGService:
             )
             print("Retriever berhasil dibuat.")
         except Exception as e:
-            print(f"Error kritis saat membuat retriever: {e}")
-            raise RuntimeError("Gagal membuat retriever dari vector store.") from e
+            raise RuntimeError(f"Gagal membuat retriever: {e}") from e
 
-        # 6. Membangun RAG Chain (LCEL)
-        self._build_rag_chain()
-        print("RAG chain berhasil dibangun.")
         print("RAGService berhasil diinisialisasi sepenuhnya.")
 
     def _format_docs_for_context(self, docs: List[Document]) -> str:
@@ -98,19 +113,28 @@ class RAGService:
             context_parts.append(f"[Sumber: {source}, Halaman: {str(page)}]\n{doc.page_content}")
         return "\n\n---\n\n".join(context_parts)
 
-    def _build_rag_chain(self):
+    def _build_rag_chain(self, llm_client: Any):
+        if llm_client is None:
+            raise ValueError("Klien LLM tidak disediakan atau tidak terinisialisasi untuk _build_rag_chain.")
+
         prompt_template_str = """
-        You are a very helpful AI assistant. Use the following context to answer user questions. The context comes from various documents. Answer the questions solely based on the provided context. If the information is not available in the context, say you cannot find the answer in the provided documents. Try to keep your answers concise and to the point. If possible and relevant, mention from which source document the information comes (use metadata 'source').
-    
-        Context:{context}
-    
-        Question:{question}
-    
-        Answer (based on the above context):
+        Anda adalah asisten AI yang sangat membantu. Gunakan potongan konteks berikut untuk menjawab pertanyaan pengguna.
+        Konteks berasal dari berbagai dokumen, sumber dan halaman akan dicantumkan.
+        Jawablah pertanyaan hanya berdasarkan konteks yang diberikan.
+        Jika informasi tidak ada dalam konteks, katakan Anda tidak dapat menemukan jawabannya dalam dokumen yang disediakan.
+        Jawablah dengan jelas dan ringkas.
+
+        Konteks:
+        {context}
+
+        Pertanyaan:
+        {question}
+
+        Jawaban (berdasarkan konteks di atas):
         """
         prompt = PromptTemplate.from_template(prompt_template_str)
 
-        self.rag_chain = (
+        return (
                 RunnableParallel(
                     {"context_docs": self.retriever, "question": RunnablePassthrough()}
                 )
@@ -120,7 +144,7 @@ class RAGService:
                         RunnablePassthrough()
                         | RunnablePassthrough.assign(context=lambda x: self._format_docs_for_context(x["context_docs"]))
                         | prompt
-                        | self.llm
+                        | llm_client
                         | StrOutputParser()
                 ),
                 "sources": lambda x: x["context_docs"]
@@ -128,13 +152,24 @@ class RAGService:
         )
         )
 
-    async def answer_query(self, question: str) -> Dict[str, Any]:
-        if not self.rag_chain:
-            print("ERROR: RAG chain belum diinisialisasi saat answer_query dipanggil.")
-            raise RuntimeError("RAG chain tidak siap. Inisialisasi mungkin gagal.")
+    async def answer_query(self, question: str, llm_provider: LLMProviderType) -> Dict[str, Any]:
+        chosen_llm: Optional[Any] = None
+        if llm_provider == "azure_chat":
+            chosen_llm = self.azure_chat_llm
+            if not chosen_llm:
+                raise ValueError("LLM Azure OpenAI Chat tidak dikonfigurasi atau gagal inisialisasi.")
+        elif llm_provider == "openrouter":
+            chosen_llm = self.openrouter_llm
+            if not chosen_llm:
+                raise ValueError("LLM OpenRouter tidak dikonfigurasi atau gagal inisialisasi.")
+        else:
+            # Ini seharusnya tidak dipanggil jika controller hanya mengirim tipe yang valid
+            raise ValueError(f"Penyedia LLM tidak dikenal: {llm_provider}. Pilih 'azure_chat' atau 'openrouter'.")
+
+        rag_chain = self._build_rag_chain(chosen_llm)
 
         try:
-            result = await self.rag_chain.ainvoke(question)
+            result = await rag_chain.ainvoke(question)
 
             formatted_sources = []
             sources_data = result.get("sources")
@@ -146,10 +181,9 @@ class RAGService:
                             "page": str(doc.metadata.get('page', 'N/A')),
                             "content_snippet": doc.page_content[:250] + "..."
                         })
-                    else:
-                        print(f"Peringatan: Item tidak valid dalam sources_data: {type(doc)}")
 
             return {"answer": result.get("answer", "Tidak ada jawaban yang dihasilkan."), "sources": formatted_sources}
         except Exception as e:
-            print(f"Error dalam RAG chain invocation: {e}")
-            raise
+            print(f"Error dalam RAG chain invocation dengan {llm_provider}: {e}")
+            raise RuntimeError(f"Gagal memproses query dengan {llm_provider} LLM.") from e
+
