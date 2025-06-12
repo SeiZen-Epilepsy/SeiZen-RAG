@@ -1,5 +1,3 @@
-# File: app/controllers/open_router/controller.py
-
 from typing import Dict, Any
 from app.services.services import RAGService
 
@@ -8,9 +6,9 @@ class OpenRouterRAGController:
         self.rag_service = rag_service
 
     async def handle_query(self, question: str) -> Dict[str, Any]:
-        """Menangani query dan memanggil RAGService dengan provider OpenRouter."""
+        """Handle query and call RAGService with OpenRouter provider."""
         if not self.rag_service.openrouter_llm:
-            raise ValueError("LLM OpenRouter tidak dikonfigurasi atau gagal inisialisasi di RAGService.")
+            raise ValueError("OpenRouter LLM is not configured or failed initialization in RAGService.")
 
         return await self.rag_service.answer_query(question, llm_provider="openrouter")
 
